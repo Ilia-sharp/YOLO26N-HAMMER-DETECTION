@@ -27,6 +27,17 @@ COPY . .
 
 RUN mkdir -p data/weights outputs runs/detect
 
+# 🎯 Скачиваем базовую модель YOLO26n
+RUN python -c "from ultralytics import YOLO; YOLO('yolo26n.pt')"
+
+# 📸 Генерируем синтетический датасет молотков (32 train + 8 val + 5 test)
+RUN python scripts/generate_dataset.py
+
+# 🧠 Обучаем модель на датасете (25 эпох)
+RUN python scripts/train.py
+
+# ✅ После обучения файл data/weights/best.pt будет внутри контейнера
+
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

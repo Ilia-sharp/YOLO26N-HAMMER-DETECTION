@@ -12,7 +12,9 @@
 <h1>Hammer Detection</h1>
 <p class="subtitle">YOLO26n • Student #16</p>
 </header>
+
 <main class="main">
+<!-- Зона загрузки -->
 <div class="upload-area" id="uploadArea">
 <div class="upload-icon">
 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -26,6 +28,8 @@
 <button class="btn" onclick="document.getElementById('fileInput').click()">Выбрать файл</button>
 <input type="file" id="fileInput" accept="image/*" hidden>
 </div>
+
+<!-- Предпросмотр -->
 <div class="preview" id="preview" style="display:none;">
 <img id="previewImage" alt="Preview">
 <div class="preview-info">
@@ -33,32 +37,182 @@
 <button class="btn btn-secondary" onclick="resetUpload()">Сбросить</button>
 </div>
 </div>
+
+<!-- Прогресс-бар -->
+<div class="progress-container" id="progressContainer" style="display:none;">
+<div class="progress-bar">
+<div class="progress-fill" id="progressFill"></div>
+</div>
+<p class="progress-text" id="progressText">Загрузка изображения...</p>
+</div>
+
+<!-- Результаты -->
 <div class="results" id="results" style="display:none;">
 <h2>Результаты</h2>
 <div class="stat">
 <span class="stat-value" id="detectionCount">0</span>
 <span class="stat-label">обнаружено</span>
 </div>
+<div class="result-image-container" id="resultImageContainer" style="display:none;">
+<img id="resultImage" alt="Detected">
+</div>
 <div class="detection-list" id="detectionList"></div>
 </div>
 </main>
+
 <footer class="footer"><p>Render Free Tier • CPU • 512MB</p></footer>
 </div>
+
 <script>
-const uploadArea=document.getElementById('uploadArea');
-const fileInput=document.getElementById('fileInput');
-const preview=document.getElementById('preview');
-const previewImage=document.getElementById('previewImage');
-const results=document.getElementById('results');
-let currentFile=null;
-uploadArea.addEventListener('dragover',(e)=>{e.preventDefault();uploadArea.classList.add('drag-over');});
-uploadArea.addEventListener('dragleave',()=>{uploadArea.classList.remove('drag-over');});
-uploadArea.addEventListener('drop',(e)=>{e.preventDefault();uploadArea.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/'))showPreview(f);});
-fileInput.addEventListener('change',(e)=>{const f=e.target.files[0];if(f)showPreview(f);});
-function showPreview(file){currentFile=file;const r=new FileReader();r.onload=(e)=>{previewImage.src=e.target.result;uploadArea.style.display='none';preview.style.display='block';results.style.display='none';};r.readAsDataURL(file);}
-function resetUpload(){currentFile=null;uploadArea.style.display='block';preview.style.display='none';results.style.display='none';fileInput.value='';}
-async function detectHammer(){if(!currentFile)return;const fd=new FormData();fd.append('file',currentFile);try{const r=await fetch('/api/detect',{method:'POST',body:fd});const d=await r.json();showResults(d);}catch(e){alert('Ошибка');}}
-function showResults(data){results.style.display='block';document.getElementById('detectionCount').textContent=data.count||0;const dl=document.getElementById('detectionList');dl.innerHTML='';if(data.detections&&data.detections.length>0){data.detections.forEach((det,i)=>{const item=document.createElement('div');item.className='detection-item';item.innerHTML='<span>#'+(i+1)+'</span><span>'+det.class+'</span><span>'+(det.confidence*100).toFixed(1)+'%</span>';dl.appendChild(item);});}else{dl.innerHTML='<p class="no-detections">Не обнаружено</p>';}}
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+const preview = document.getElementById('preview');
+const previewImage = document.getElementById('previewImage');
+const results = document.getElementById('results');
+const progressContainer = document.getElementById('progressContainer');
+const progressFill = document.getElementById('progressFill');
+const progressText = document.getElementById('progressText');
+let currentFile = null;
+
+// Drag & Drop
+uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.classList.add('drag-over');
+});
+
+uploadArea.addEventListener('dragleave', () => {
+    uploadArea.classList.remove('drag-over');
+});
+
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) showPreview(f);
+});
+
+fileInput.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) showPreview(f);
+});
+
+function showPreview(file) {
+    currentFile = file;
+    const r = new FileReader();
+    r.onload = (e) => {
+        previewImage.src = e.target.result;
+        uploadArea.style.display = 'none';
+        preview.style.display = 'block';
+        results.style.display = 'none';
+    };
+    r.readAsDataURL(file);
+}
+
+function resetUpload() {
+    currentFile = null;
+    uploadArea.style.display = 'block';
+    preview.style.display = 'none';
+    results.style.display = 'none';
+    progressContainer.style.display = 'none';
+    fileInput.value = '';
+}
+
+function showProgress(show, text = 'Обработка...') {
+    progressContainer.style.display = show ? 'block' : 'none';
+    if (show) {
+        progressText.textContent = text;
+        progressFill.style.width = '0%';
+    }
+}
+
+function updateProgress(percent, text) {
+    progressFill.style.width = percent + '%';
+    if (text) progressText.textContent = text;
+}
+
+async function detectHammer() {
+    if (!currentFile) return;
+    
+    showProgress(true, 'Загрузка изображения...');
+    
+    const fd = new FormData();
+    fd.append('file', currentFile);
+    
+    try {
+        // Симуляция прогресса (реальный прогресс запроса)
+        updateProgress(10, 'Загрузка изображения...');
+        
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/detect');
+        
+        // Отслеживание прогресса загрузки
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const percent = (e.loaded / e.total) * 100;
+                updateProgress(Math.min(percent, 50), 'Загрузка изображения...');
+            }
+        };
+        
+        // Симуляция прогресса обработки
+        let progressInterval = setInterval(() => {
+            updateProgress(70, 'Детекция молотков...');
+        }, 500);
+        
+        const response = await new Promise((resolve, reject) => {
+            xhr.onload = () => {
+                clearInterval(progressInterval);
+                updateProgress(100, 'Готово!');
+                resolve({ status: xhr.status, text: xhr.responseText });
+            };
+            xhr.onerror = () => reject(new Error('Network error'));
+            xhr.send(fd);
+        });
+        
+        setTimeout(() => {
+            showProgress(false);
+            if (response.status === 200) {
+                const data = JSON.parse(response.text);
+                showResults(data);
+            } else {
+                alert('Ошибка при обработке');
+                resetUpload();
+            }
+        }, 300);
+        
+    } catch (e) {
+        showProgress(false);
+        alert('Ошибка: ' + e.message);
+    }
+}
+
+function showResults(data) {
+    results.style.display = 'block';
+    document.getElementById('detectionCount').textContent = data.count || 0;
+    
+    // Показываем изображение с рамками
+    const imgContainer = document.getElementById('resultImageContainer');
+    const resultImage = document.getElementById('resultImage');
+    if (data.image) {
+        imgContainer.style.display = 'block';
+        resultImage.src = data.image;
+    } else {
+        imgContainer.style.display = 'none';
+    }
+    
+    const dl = document.getElementById('detectionList');
+    dl.innerHTML = '';
+    
+    if (data.detections && data.detections.length > 0) {
+        data.detections.forEach((det, i) => {
+            const item = document.createElement('div');
+            item.className = 'detection-item';
+            item.innerHTML = '<span>#' + (i + 1) + '</span><span>' + det.class + '</span><span>' + (det.confidence * 100).toFixed(1) + '%</span>';
+            dl.appendChild(item);
+        });
+    } else {
+        dl.innerHTML = '<p class="no-detections">Молотки не обнаружены</p>';
+    }
+}
 </script>
 </body>
 </html>

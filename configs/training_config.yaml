@@ -1,0 +1,10 @@
+model: yolo26n.pt
+nc: 1
+names: ['hammer']
+epochs: 25
+batch: 8
+imgsz: 416
+optimizer: Adam
+lr0: 0.001
+device: cpu
+workers: 0

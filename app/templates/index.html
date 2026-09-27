@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hammer Detection</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container">
+<header class="header">
+<h1>Hammer Detection</h1>
+<p class="subtitle">YOLO26n • Student #16</p>
+</header>
+<main class="main">
+<div class="upload-area" id="uploadArea">
+<div class="upload-icon">
+<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+<polyline points="17 8 12 3 7 8"/>
+<line x1="12" y1="3" x2="12" y2="15"/>
+</svg>
+</div>
+<p>Перетащите изображение молотка</p>
+<span>или</span>
+<button class="btn" onclick="document.getElementById('fileInput').click()">Выбрать файл</button>
+<input type="file" id="fileInput" accept="image/*" hidden>
+</div>
+<div class="preview" id="preview" style="display:none;">
+<img id="previewImage" alt="Preview">
+<div class="preview-info">
+<button class="btn btn-primary" onclick="detectHammer()">Обнаружить</button>
+<button class="btn btn-secondary" onclick="resetUpload()">Сбросить</button>
+</div>
+</div>
+<div class="results" id="results" style="display:none;">
+<h2>Результаты</h2>
+<div class="stat">
+<span class="stat-value" id="detectionCount">0</span>
+<span class="stat-label">обнаружено</span>
+</div>
+<div class="detection-list" id="detectionList"></div>
+</div>
+</main>
+<footer class="footer"><p>Render Free Tier • CPU • 512MB</p></footer>
+</div>
+<script>
+const uploadArea=document.getElementById('uploadArea');
+const fileInput=document.getElementById('fileInput');
+const preview=document.getElementById('preview');
+const previewImage=document.getElementById('previewImage');
+const results=document.getElementById('results');
+let currentFile=null;
+uploadArea.addEventListener('dragover',(e)=>{e.preventDefault();uploadArea.classList.add('drag-over');});
+uploadArea.addEventListener('dragleave',()=>{uploadArea.classList.remove('drag-over');});
+uploadArea.addEventListener('drop',(e)=>{e.preventDefault();uploadArea.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/'))showPreview(f);});
+fileInput.addEventListener('change',(e)=>{const f=e.target.files[0];if(f)showPreview(f);});
+function showPreview(file){currentFile=file;const r=new FileReader();r.onload=(e)=>{previewImage.src=e.target.result;uploadArea.style.display='none';preview.style.display='block';results.style.display='none';};r.readAsDataURL(file);}
+function resetUpload(){currentFile=null;uploadArea.style.display='block';preview.style.display='none';results.style.display='none';fileInput.value='';}
+async function detectHammer(){if(!currentFile)return;const fd=new FormData();fd.append('file',currentFile);try{const r=await fetch('/api/detect',{method:'POST',body:fd});const d=await r.json();showResults(d);}catch(e){alert('Ошибка');}}
+function showResults(data){results.style.display='block';document.getElementById('detectionCount').textContent=data.count||0;const dl=document.getElementById('detectionList');dl.innerHTML='';if(data.detections&&data.detections.length>0){data.detections.forEach((det,i)=>{const item=document.createElement('div');item.className='detection-item';item.innerHTML='<span>#'+(i+1)+'</span><span>'+det.class+'</span><span>'+(det.confidence*100).toFixed(1)+'%</span>';dl.appendChild(item);});}else{dl.innerHTML='<p class="no-detections">Не обнаружено</p>';}}
+</script>
+</body>
+</html>

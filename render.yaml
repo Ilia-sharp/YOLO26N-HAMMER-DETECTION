@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: yolo26n-hammer-app
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: OMP_NUM_THREADS
+        value: "1"
+    disk:
+      name: data-storage
+      mountPath: /app/data
+      sizeGB: 1
+    autoDeploy: true

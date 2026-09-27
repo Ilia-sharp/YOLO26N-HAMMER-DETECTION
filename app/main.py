@@ -5,9 +5,11 @@ Student #16 | Class: hammer | LR2
 """
 
 import sys
+import base64
+import io
 from pathlib import Path
 from fastapi import FastAPI, Request, UploadFile, File, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -27,6 +29,28 @@ app.mount(
     name="static"
 )
 templates = Jinja2Templates(directory=str(PROJECT_ROOT / "app" / "templates"))
+
+# Глобальная переменная для кэширования модели
+_model = None
+
+
+def get_model():
+    """Загрузка модели с кэшированием."""
+    global _model
+    if _model is None:
+        from ultralytics import YOLO
+        
+        # Приоритет: обученная модель → базовая модель
+        weights_path = PROJECT_ROOT / "data" / "weights" / "best.pt"
+        if not weights_path.exists():
+            weights_path = PROJECT_ROOT / "yolo26n.pt"
+        if not weights_path.exists():
+            weights_path = "yolo26n.pt"
+        
+        print(f"[INFO] Loading model from: {weights_path}")
+        _model = YOLO(str(weights_path))
+    
+    return _model
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -70,7 +94,6 @@ async def detect_hammer(file: UploadFile = File(...)):
     try:
         import cv2
         import numpy as np
-        from ultralytics import YOLO
 
         # Читаем файл
         contents = await file.read()
@@ -80,12 +103,8 @@ async def detect_hammer(file: UploadFile = File(...)):
         if img is None:
             raise HTTPException(status_code=400, detail="Неверный формат изображения")
 
-        # Загружаем модель
-        weights_path = PROJECT_ROOT / "data" / "weights" / "best.pt"
-        if not weights_path.exists():
-            weights_path = "yolo26n.pt"
-
-        model = YOLO(str(weights_path))
+        # Получаем модель
+        model = get_model()
 
         # Инференс
         results = model.predict(
@@ -114,10 +133,24 @@ async def detect_hammer(file: UploadFile = File(...)):
                             "bbox": [round(x, 2) for x in xyxy]
                         })
 
+        # Создаём изображение с рамками
+        img_with_boxes = img.copy()
+        for det in detections:
+            x1, y1, x2, y2 = map(int, det["bbox"])
+            cv2.rectangle(img_with_boxes, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            label = f"{det['class']}: {det['confidence']:.2f}"
+            cv2.putText(img_with_boxes, label, (x1, y1 - 10),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+        # Кодируем в base64 для отображения
+        _, buffer = cv2.imencode('.jpg', img_with_boxes)
+        img_base64 = base64.b64encode(buffer).decode('utf-8')
+
         return {
             "status": "success",
             "detections": detections,
-            "count": len(detections)
+            "count": len(detections),
+            "image": f"data:image/jpeg;base64,{img_base64}"
         }
 
     except HTTPException:
